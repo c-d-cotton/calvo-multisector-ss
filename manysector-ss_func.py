@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+# PYTHON_PREAMBLE_START_STANDARD:{{{
+
+# Christopher David Cotton (c)
+# http://www.cdcotton.com
+
+# modules needed for preamble
+import importlib
+import os
+from pathlib import Path
+import sys
+
+# Get full real filename
+__fullrealfile__ = os.path.abspath(__file__)
+
+# Function to get git directory containing this file
+def getprojectdir(filename):
+    curlevel = filename
+    while curlevel is not '/':
+        curlevel = os.path.dirname(curlevel)
+        if os.path.exists(curlevel + '/.git/'):
+            return(curlevel + '/')
+    return(None)
+
+# Directory of project
+__projectdir__ = Path(getprojectdir(__fullrealfile__))
+
+# Function to call functions from files by their absolute path.
+# Imports modules if they've not already been imported
+# First argument is filename, second is function name, third is dictionary containing loaded modules.
+modulesdict = {}
+def importattr(modulefilename, func, modulesdict = modulesdict):
+    # get modulefilename as string to prevent problems in <= python3.5 with pathlib -> os
+    modulefilename = str(modulefilename)
+    # if function in this file
+    if modulefilename == __fullrealfile__:
+        return(eval(func))
+    else:
+        # add file to moduledict if not there already
+        if modulefilename not in modulesdict:
+            # check filename exists
+            if not os.path.isfile(modulefilename):
+                raise Exception('Module not exists: ' + modulefilename + '. Function: ' + func + '. Filename called from: ' + __fullrealfile__ + '.')
+            # add directory to path
+            sys.path.append(os.path.dirname(modulefilename))
+            # actually add module to moduledict
+            modulesdict[modulefilename] = importlib.import_module(''.join(os.path.basename(modulefilename).split('.')[: -1]))
+
+        # get the actual function from the file and return it
+        return(getattr(modulesdict[modulefilename], func))
+
+# PYTHON_PREAMBLE_END:}}}
+
+import numpy as np
+
+# Get Steady State:{{{1
+def getss(BETA, LAMBDAs, Pistar, SIGMA, TAU, WEIGHTs):
+    """
+    Compute the steady state for a multiple sector model.
+
+    SIGMA = elasticity of substitution within sectors, TAU = across sectors
+    """
+
+    J = len(WEIGHTs)
+
+    # verify WEIGHTs sum to 1
+    if np.abs(np.sum(WEIGHTs) - 1) > 1e-6:
+        raise ValueError('WEIGHTs must sum to 1.')
+
+    # compute PjstaroverPj
+    PjstaroverPj_list = []
+    for j in range(J):
+        PjstaroverPj_list.append( ( (1-(1-LAMBDAs[j])*Pistar**(SIGMA-1)) / LAMBDAs[j])**(1/(1-SIGMA)) )
+
+        PstaroverP = ((1 - (1 - LAMBDAs[j]) * Pistar**(SIGMA - 1))/LAMBDAs[j])**(1/(1 - SIGMA))
+
+    # compute nu_j
+    NUj_list = []
+    for j in range(J):
+        NUj_list.append( 1/(1 - (1-LAMBDAs[j])*Pistar**SIGMA) * LAMBDAs[j] * PjstaroverPj_list[j]**(-SIGMA) )
+
+    # compute MC
+    # first compute the sum of the integral term to (1 - TAU)
+    sumterm = 0
+    terminfoc_list = []
+    for j in range(J):
+        terminfoc_part1 = SIGMA / (SIGMA - 1) * (1 - (1-LAMBDAs[j])*BETA*Pistar**(SIGMA-1)) / ( 1 - (1-LAMBDAs[j]) * BETA * Pistar**SIGMA )
+        terminfoc_part2 = 1 / PjstaroverPj_list[j] 
+        terminfoc = terminfoc_part1 * terminfoc_part2
+        terminfoc_list.append(terminfoc)
+        if terminfoc < 0:
+            raise ValueError('Solving for MC failed in Calvo multisector. terminfoc < 0.')
+
+        sumterm = sumterm + WEIGHTs[j] * (terminfoc_list[j]) ** (1 - TAU)
+    if sumterm <= 0:
+        raise ValueError('Solving for MC failed in Calvo multisector. sumterm < 0')
+    MC = (1/sumterm)**(1/(1-TAU))
+
+    # PjoverP_list
+    PjoverP_list = []
+    for j in range(J):
+        PjoverP_list.append( terminfoc_list[j] * MC )
+
+    # NU
+    NU = 0
+    for j in range(J):
+        NU = NU + WEIGHTs[j] * PjoverP_list[j] ** (-TAU) * NUj_list[j]
+
+    retdict = {}
+    retdict['NUj_list'] = NUj_list
+    retdict['PjstaroverPj_list'] = PjstaroverPj_list
+    retdict['MC'] = MC
+    retdict['PjoverP_list'] = PjoverP_list
+    retdict['NU'] = NU
+
+    if np.any([NU_j < 0 for NU_j in retdict['NUj_list']]):
+        raise ValueError('NU_j take negative values.')
+
+    return(retdict)
+
+
+def test():
+    LAMBDAs = [1 - (1 - 0.6) ** (1/4)]
+    # LAMBDAs = [1 - (1 - 0.6) ** (1/4), 0.9]
+
+    WEIGHTs = [1]
+
+    retdict = getss(BETA = 0.94 ** (1/4), LAMBDAs = LAMBDAs, Pistar = 1.04 ** (1/4), SIGMA = 8, TAU = 1.001, WEIGHTs = WEIGHTs)
+    print(retdict['MC'])
+    print(retdict['PjoverP_list'])
+    print(retdict['NUj_list'])
+    print(retdict['NU'] * retdict['MC'])
+
+
+def test2():
+    LAMBDAs = [1 - (1 - 0.6) ** (1/4)] * 2
+    # LAMBDAs = [1 - (1 - 0.6) ** (1/4), 0.9]
+
+    WEIGHTs = [0.5, 0.5]
+
+    retdict = getss(BETA = 0.94 ** (1/4), LAMBDAs = LAMBDAs, Pistar = 1.04 ** (1/4), SIGMA = 8, TAU = 1.001, WEIGHTs = WEIGHTs)
+    print(retdict['MC'])
+    print(retdict['PjoverP_list'])
+    print(retdict['NUj_list'])
+    print(retdict['NU'] * retdict['MC'])
+
+
+# Pricing Parameters Based upon Nakamura Steinsson 2008:{{{1
+def ns_vectors(numsectors = 14):
+    """
+    Vectors for weights and lambdas from 
+    """
+    if numsectors == 6:
+        # Table 2, p.978 2010 multisector menu cost
+        ns_weights = np.array([7.7, 19.1, 5.9, 13.7, 38.5, 15.1])
+        ns_monthlyfreqs = np.array([91.6, 35.5, 25.4, 11.9, 8.8, 5.2])
+    elif numsectors == 9:
+        # Table 2, p.978 2010 multisector menu cost
+        ns_weights = np.array([7.7, 19.1, 5.9, 9.2, 13.7, 9.6, 10.0, 15.1, 9.7])
+        ns_monthlyfreqs = np.array([91.6, 35.5, 25.4, 19.7, 11.9, 7.6, 5.5, 5.2, 3.2])
+    elif numsectors == 11:
+        # weights from Table 2, p.1433 of Nakamura Steinsson's Five Facts About Prices, 2008
+        ns_weights = np.array([8.2, 5.9, 5.0, 6.5, 8.3, 3.6, 5.4, 5.3, 5.1, 5.5, 38.5])
+        ns_monthlyfreqs = np.array([10.5, 25.0, 6.0, 3.6, 31.3, 6.0, 15.0, 38.1, 87.6, 41.7, 6.1])
+    elif numsectors == 14:
+        # Table 2, p.978 2010 multisector menu cost
+        ns_weights = np.array([7.7, 5.3, 5.5, 5.9, 8.3, 7.7, 13.7, 7.5, 5.0, 7.8, 3.6, 7.6, 6.5, 7.9])
+        ns_monthlyfreqs = np.array([91.6, 49.4, 43.7, 25.4, 21.3, 21.7, 11.9, 8.4, 6.5, 6.2, 6.1, 4.9, 3.6, 2.9])
+    else:
+        raise ValueError('Incorrect option for sectors.')
+
+    # adjustments
+    ns_weights = ns_weights / np.sum(ns_weights)
+    ns_monthlyfreqs = ns_monthlyfreqs / 100
+
+    return(ns_weights, ns_monthlyfreqs)
+
+
+def getns_lambdas(monthsinperiod = 3, numsectors = 14):
+    ns_weights, ns_monthlyfreqs = ns_vectors(numsectors = numsectors)
+    ns_lambdas = 1 - (1 - ns_monthlyfreqs) ** monthsinperiod
+    return(ns_weights, ns_lambdas)
+
+
+def ns_ss(BETA, Pistar, SIGMA, TAU, monthsinperiod = 1):
+    """
+    Frequencies of price changes and weights taken from Nakamura Steinsson
+    """
+    ns_weights, ns_lambdas = getns_lambdas(monthsinperiod = monthsinperiod)
+
+    retdict = getss(BETA, ns_lambdas, Pistar, SIGMA, TAU, ns_weights)
+
+    return(retdict)
