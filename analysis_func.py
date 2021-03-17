@@ -13,7 +13,7 @@ def varyrigidityonesector():
     rigiditylist = np.linspace(0.05, 0.5, 100)
     aggMClist = []
     for rigidity2 in rigiditylist:
-        from manysector-ss_func import getss
+        from manysector_ss_func import getss
         retdict = getss(0.96 **(1/12), [0.1, rigidity2], 1.02**(1/12), 8, 8, [0.5, 0.5])
         aggMClist.append(1 - retdict['MC'] * retdict['NU'])
 
@@ -35,7 +35,7 @@ def varytau():
     taulist = np.linspace(2, 10, 100)
     aggMClist = []
     for tau in taulist:
-        from manysector-ss_func import getss
+        from manysector_ss_func import getss
         retdict = getss(0.96 **(1/12), [0.2, 0.1], 1.02**(1/12), 8, tau, [0.4, 0.6])
         aggMClist.append(1 - retdict['MC'] * retdict['NU'])
 
@@ -65,7 +65,7 @@ def inflation_profitshare_inter():
     
     # get fixed costs for basic calvo 
     sys.path.append(str(__projectdir__ / Path('submodules/calvo-basic-ss/')))
-    from calvo-ss_func import calvobasicss
+    from calvo_ss_func import calvobasicss
     _, MC, NU = calvobasicss(BETA, LAMBDA, SIGMA, 1)
     fbasic = 1 - MC * NU - profitsharestar
     finter = 1 - MC * NU - profitsharestar * (1 - s_m * MC * NU)
@@ -73,13 +73,13 @@ def inflation_profitshare_inter():
     profitsbasic = []
     profitsinter = []
     for Pistar in Pistars_monthly:
-        from manysector-ss_func import calvobasicss
+        from manysector_ss_func import calvobasicss
         _, MC, NU = calvobasicss(BETA, LAMBDA, SIGMA, Pistar)
         profitsbasic.append(1 - MC * NU - fbasic)
         profitsinter.append( (1 - MC * NU - finter) / (1 - s_m * MC * NU) )
 
     # get fixed costs for multisector calvo 
-    from manysector-ss_func import ns_ss
+    from manysector_ss_func import ns_ss
     retdict = ns_ss(BETA, 1, SIGMA, SIGMA)
     aggMC = retdict['MC'] * retdict['NU']
     fmulti = 1 - aggMC - profitsharestar
@@ -88,7 +88,7 @@ def inflation_profitshare_inter():
     profitsmulti = []
     profitsmultiinter = []
     for Pistar in Pistars_monthly:
-        from manysector-ss_func import ns_ss
+        from manysector_ss_func import ns_ss
         retdict = ns_ss(BETA, Pistar, SIGMA, SIGMA)
         aggMC = retdict['MC'] * retdict['NU']
         profitsmulti.append(1 - aggMC - fmulti)
