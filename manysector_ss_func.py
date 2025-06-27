@@ -24,9 +24,10 @@ def getss(BETA, LAMBDAs, Pistar, SIGMA, TAU, WEIGHTs):
     # compute PjstaroverPj
     PjstaroverPj_list = []
     for j in range(J):
-        PjstaroverPj_list.append( ( (1-(1-LAMBDAs[j])*Pistar**(SIGMA-1)) / LAMBDAs[j])**(1/(1-SIGMA)) )
-
-        PstaroverP = ((1 - (1 - LAMBDAs[j]) * Pistar**(SIGMA - 1))/LAMBDAs[j])**(1/(1 - SIGMA))
+        PstaroverPj = ( (1-(1-LAMBDAs[j])*Pistar**(SIGMA-1)) / LAMBDAs[j])**(1/(1-SIGMA))
+        if not PstaroverPj > 0:
+            raise ValueError(f"PstaroverPj = {PstaroverPj}. The model will not solve when this value is less than zero. This happens for sector j: {j}. It is because a small fraction of that sectors prices change each period ({LAMBDAs[j]}) while the remainder falls by Pistar ({Pistar}) in steady state. Pistar is large enough that PstaroverPj cannot be large enough to make these equalize. To prevent this, I need to lower Pistar, lower SIGMA, or raise LAMBDAj.")
+        PjstaroverPj_list.append( PstaroverPj )
 
     # compute nu_j
     NUj_list = []
