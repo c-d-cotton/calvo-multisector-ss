@@ -68,6 +68,10 @@ def getss(BETA, LAMBDAs, Pistar, SIGMA, TAU, WEIGHTs):
     retdict['PjoverP_list'] = PjoverP_list
     retdict['NU'] = NU
 
+    if np.any([PjoverP_j < 0 for PjoverP_j in retdict['PjoverP_list']]):
+        raise ValueError('PjoverP_j take negative values.')
+    if np.any([PjstaroverP_j < 0 for PjstaroverP_j in retdict['PjstaroverP_list']]):
+        raise ValueError('PjstaroverP_j take negative values.')
     if np.any([NU_j < 0 for NU_j in retdict['NUj_list']]):
         raise ValueError('NU_j take negative values.')
 
